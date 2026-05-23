@@ -1,35 +1,21 @@
 name: Delta Force Ammo Scraper
 
 on:
-  workflow_dispatch:     # 只保留手動執行，暫時取消定時
+  workflow_dispatch:
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
       
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       
       - name: Install dependencies
-        run: |
-          pip install pandas playwright
-          playwright install chromium
+        run: pip install requests beautifulsoup4 pandas
       
-      - name: Run scraper with debug
-        run: |
-          python scraper.py || echo "Scraper exited with error"
-      
-      - name: Show CSV content
-        run: |
-          echo "=== CSV Content ==="
-          if [ -f ammo_prices_wide.csv ]; then
-            cat ammo_prices_wide.csv
-          else
-            echo "No CSV file generated"
-          fi
+      - name: Run scraper
+        run: python scraper.py
