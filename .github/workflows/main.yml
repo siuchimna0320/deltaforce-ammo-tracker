@@ -1,15 +1,11 @@
 name: Delta Force Ammo Scraper
 
 on:
-  schedule:
-    - cron: '0 * * * *'
-  workflow_dispatch:
+  workflow_dispatch:     # 只保留手動執行，暫時取消定時
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     
     steps:
       - name: Checkout code
@@ -23,16 +19,17 @@ jobs:
       - name: Install dependencies
         run: |
           pip install pandas playwright
-          playwright install --with-deps chromium
+          playwright install chromium
       
-      - name: Run scraper
-        run: python scraper.py
-      
-      - name: Show result
+      - name: Run scraper with debug
         run: |
-          echo "=== Latest data ==="
+          python scraper.py || echo "Scraper exited with error"
+      
+      - name: Show CSV content
+        run: |
+          echo "=== CSV Content ==="
           if [ -f ammo_prices_wide.csv ]; then
-            tail -n 5 ammo_prices_wide.csv
+            cat ammo_prices_wide.csv
           else
-            echo "CSV file not created yet"
+            echo "No CSV file generated"
           fi
