@@ -4,7 +4,7 @@ import os
 import time
 import random
 import re
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from bs4 import BeautifulSoup
 
 # ========== 配置 ==========
@@ -32,8 +32,15 @@ def clean_price(price_str: str):
         return None
 
 
+def get_hk_timestamp():
+    """返回香港时间字符串，格式：YYYY-MM-DD HH:MM"""
+    # UTC+8 没有夏令时，直接加8小时
+    hk_time = datetime.utcnow() + timedelta(hours=8)
+    return hk_time.strftime("%Y-%m-%d %H:%M")
+
+
 def scrape_ammo_prices():
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+    timestamp = get_hk_timestamp()   # 改用香港时间
     data_dict = {"timestamp": timestamp}
 
     headers = {
@@ -52,7 +59,6 @@ def scrape_ammo_prices():
 
         soup = BeautifulSoup(response.text, 'html.parser')
 
-        # 定位表格
         table = soup.find("table")
         if not table:
             table = soup.find("table", class_=re.compile(r"(auction|ammo|data)"))
@@ -85,7 +91,6 @@ def scrape_ammo_prices():
         if os.path.exists(FILE_PATH):
             df = pd.read_csv(FILE_PATH)
             if timestamp in df['timestamp'].values:
-                # 同一分钟已存在，则更新该行
                 df = df.set_index('timestamp')
                 new_row = new_row.set_index('timestamp')
                 df.update(new_row)
