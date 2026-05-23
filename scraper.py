@@ -20,7 +20,6 @@ def scrape_ammo_prices():
         response.raise_for_status()
         
         soup = BeautifulSoup(response.text, 'html.parser')
-        
         rows = soup.select("table tr")
         count = 0
         
@@ -29,7 +28,6 @@ def scrape_ammo_prices():
             if len(cols) >= 3:
                 item_name = cols[1].get_text(strip=True)
                 price_text = cols[2].get_text(strip=True).replace("$", "").replace(",", "").strip()
-                
                 try:
                     price = float(price_text)
                     if item_name and price > 0:
@@ -38,10 +36,8 @@ def scrape_ammo_prices():
                 except:
                     pass
         
-        print(f"找到 {count} 種子彈")
-        
         if count == 0:
-            print("⚠️ 未能抓到資料")
+            print("⚠️ 未能抓到價格資料")
             return False
         
         new_row = pd.DataFrame([data_dict])
@@ -61,7 +57,7 @@ def scrape_ammo_prices():
         df = df.sort_values(by="timestamp").reset_index(drop=True)
         df.to_csv(FILE_PATH, index=False, encoding="utf-8")
         
-        print(f"✅ [{timestamp}] 成功抓取 {count} 種子彈")
+        print(f"✅ [{timestamp}] 成功抓取 {count} 種子彈 Current Price")
         return True
         
     except Exception as e:
