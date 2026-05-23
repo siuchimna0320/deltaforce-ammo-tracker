@@ -8,15 +8,12 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    
     permissions:
-      contents: write   # 重要：允許 push
+      contents: write
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -25,21 +22,17 @@ jobs:
       
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
           pip install pandas playwright
           playwright install --with-deps chromium
       
       - name: Run scraper
         run: python scraper.py
       
-      - name: Commit and push changes
+      - name: Show result
         run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "GitHub Action"
-          git add -A
-          if git diff --staged --quiet; then
-            echo "No changes to commit"
+          echo "=== Latest data ==="
+          if [ -f ammo_prices_wide.csv ]; then
+            tail -n 5 ammo_prices_wide.csv
           else
-            git commit -m "Update ammo prices - $(date -u +'%Y-%m-%d %H:%M UTC')"
-            git push
+            echo "CSV file not created yet"
           fi
