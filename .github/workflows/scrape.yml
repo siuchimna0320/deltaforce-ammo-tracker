@@ -16,11 +16,11 @@ jobs:
           cd repo
           git checkout ${{ github.ref_name }}
 
-      - name: Setup Python 3.11
+      - name: Setup Python
         run: |
           sudo apt update
-          sudo apt install -y python3.11 python3-pip
-          python3.11 --version
+          sudo apt install -y python3 python3-pip
+          python3 --version
 
       - name: Install dependencies
         working-directory: repo
@@ -31,7 +31,7 @@ jobs:
         timeout-minutes: 10
         run: |
           for i in 1 2 3; do
-            python3.11 scraper.py && break
+            python3 scraper.py && break
             echo "Attempt $i failed, retrying in 10 seconds..."
             sleep 10
           done
