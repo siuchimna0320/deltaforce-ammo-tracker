@@ -6,14 +6,13 @@ on:
   workflow_dispatch:
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true   # Silence Node.js 20 deprecation warning
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -28,8 +27,12 @@ jobs:
       - name: Install dependencies
         run: pip install requests beautifulsoup4 pandas
 
-      - name: Run scraper
-        run: python scraper.py
+      - name: Run scraper (with retry)
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          command: python scraper.py
 
       - name: Commit and push changes
         run: |
