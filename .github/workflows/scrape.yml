@@ -1,12 +1,7 @@
 name: Delta Force Ammo Scraper
 
 on:
-  schedule:
-    - cron: '0 * * * *'   # UTC hour, corresponds to Hong Kong hour+8
-  workflow_dispatch:
-
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true   # Ensure Node.js 24 for all actions
+  workflow_dispatch:   # 仅允许手动触发（TrueNAS API 调用）
 
 jobs:
   scrape:
@@ -28,12 +23,14 @@ jobs:
       - name: Install dependencies
         run: pip install requests beautifulsoup4 pandas
 
-      - name: Run scraper with retry (secure version)
-        uses: step-security/retry@v3   # Solves Node.js 20 deprecation warning
-        with:
-          timeout_minutes: 10
-          max_attempts: 3
-          command: python scraper.py
+      - name: Run scraper with retry
+        timeout-minutes: 10
+        run: |
+          for i in 1 2 3; do
+            python scraper.py && break
+            echo "Attempt $i failed, retrying in 10 seconds..."
+            sleep 10
+          done
 
       - name: Commit and push changes
         run: |
