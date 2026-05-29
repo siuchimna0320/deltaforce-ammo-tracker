@@ -5,13 +5,13 @@ import time
 import random
 import re
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from bs4 import BeautifulSoup
 
 # ========== CONFIGURATION ==========
-BASE_URL = "https://deltaforcetools.gg/auction-house/ammo"   # English version
+BASE_URL = "https://deltaforcetools.gg/auction-house/ammo"
 FILE_PATH = "ammo_prices_wide.csv"
-REQUEST_TIMEOUT = 30
+REQUEST_TIMEOUT = 60          # 增加超时时间到 60 秒
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
@@ -20,6 +20,7 @@ USER_AGENTS = [
 MIN_DELAY = 1.0
 MAX_DELAY = 2.5
 MAX_PAGES_LIMIT = 20          # Safety upper bound
+MAX_RETRIES_PER_PAGE = 2      # 每页最多重试次数
 
 
 def clean_price(price_str: str):
@@ -35,14 +36,15 @@ def clean_price(price_str: str):
 
 
 def get_hk_timestamp():
-    """Return Hong Kong time string format: YYYY-MM-DD HH:MM"""
-    hk_time = datetime.utcnow() + timedelta(hours=8)
+    """Return Hong Kong time string format: YYYY-MM-DD HH:MM (timezone-aware)"""
+    # Use datetime.now(timezone.utc) instead of deprecated utcnow()
+    hk_time = datetime.now(timezone.utc) + timedelta(hours=8)
     return hk_time.strftime("%Y-%m-%d %H:%M")
 
 
-def scrape_single_page(page_num):
+def scrape_single_page(page_num, retry=0):
     """
-    Scrape a single page.
+    Scrape a single page with retry.
     Returns (data_dict, is_empty)
     """
     url = f"{BASE_URL}?page={page_num}" if page_num > 1 else BASE_URL
@@ -88,6 +90,16 @@ def scrape_single_page(page_num):
         print(f"    ✅ Page {page_num}: success, {len(page_data)} ammo types")
         return page_data, False
 
+    except requests.exceptions.Timeout as e:
+        print(f"    ⚠️ Page {page_num}: timeout ({e})")
+        if retry < MAX_RETRIES_PER_PAGE:
+            wait = 10 * (retry + 1)
+            print(f"    🔄 Retrying in {wait} seconds... (attempt {retry+1}/{MAX_RETRIES_PER_PAGE})")
+            time.sleep(wait)
+            return scrape_single_page(page_num, retry+1)
+        else:
+            print(f"    ❌ Page {page_num}: timeout after {MAX_RETRIES_PER_PAGE} retries")
+            return {}, True
     except requests.exceptions.HTTPError as e:
         if e.response.status_code == 404:
             print(f"    ⚠️ Page {page_num}: 404 Not Found -> stop")
@@ -106,21 +118,22 @@ def safe_read_csv(file_path):
     Safely read CSV. Return empty DataFrame if file missing, empty, or corrupted.
     """
     if not os.path.exists(file_path):
+        print(f"ℹ️ File {file_path} does not exist, will create new one.")
         return pd.DataFrame()
     if os.path.getsize(file_path) == 0:
-        print(f"⚠️ File {file_path} is empty, will treat as new file")
+        print(f"⚠️ File {file_path} is empty, will treat as new file.")
         return pd.DataFrame()
     try:
         df = pd.read_csv(file_path)
         if df.empty:
-            print(f"⚠️ File {file_path} has no data rows, will treat as new file")
+            print(f"⚠️ File {file_path} has no data rows, will treat as new file.")
             return pd.DataFrame()
         return df
     except pd.errors.EmptyDataError:
-        print(f"⚠️ File {file_path} has no columns, will treat as new file")
+        print(f"⚠️ File {file_path} has no columns (EmptyDataError), will treat as new file.")
         return pd.DataFrame()
     except Exception as e:
-        print(f"⚠️ Failed to read {file_path}: {e}, will treat as new file")
+        print(f"⚠️ Failed to read {file_path}: {e}, will treat as new file.")
         return pd.DataFrame()
 
 
