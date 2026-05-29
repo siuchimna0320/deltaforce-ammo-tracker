@@ -8,14 +8,15 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      id-token: write   # Not strictly needed for authkey mode, but harmless
+      # OAuth method does not require id-token: write, can be omitted
 
     steps:
-      # Connect to Tailscale using a reusable auth key (90-day expiry)
-      - name: Connect to Tailscale
+      # Connect to Tailscale using OAuth client (automatically manages auth keys, permanent)
+      - name: Connect to Tailscale via OAuth
         uses: tailscale/github-action@v3
         with:
-          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          oauthClientId: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauthSecret: ${{ secrets.TS_OAUTH_CLIENT_SECRET }}
           tags: tag:github-runner
 
       # Verify Tailscale connection status
@@ -36,7 +37,7 @@ jobs:
           sudo apt install -y python3 python3-pip
           python3 --version
 
-      # Install dependencies for scraping
+      # Install scraping dependencies
       - name: Install scraping dependencies
         working-directory: repo
         run: pip3 install requests beautifulsoup4 pandas
@@ -90,7 +91,7 @@ jobs:
           PGPASSWORD: ${{ secrets.PGPASSWORD }}
         run: python3 csv_to_db.py
 
-      # Commit and push the updated CSV file (database file is not committed)
+      # Commit and push updated CSV file (database file is not committed)
       - name: Commit and push changes
         working-directory: repo
         run: |
