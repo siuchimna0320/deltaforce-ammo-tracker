@@ -13,9 +13,12 @@ if not os.path.exists(CSV_PATH):
 df_wide = pd.read_csv(CSV_PATH)
 df_long = df_wide.melt(id_vars=['timestamp'], var_name='ammo_name', value_name='price')
 df_long = df_long.dropna(subset=['price'])
-df_long['timestamp'] = pd.to_datetime(df_long['timestamp']).dt.strftime('%Y-%m-%d %H:%M')
+
+# 关键修改：将时间字符串转换为 datetime 对象
+df_long['timestamp'] = pd.to_datetime(df_long['timestamp'], format='%Y-%m-%d %H:%M')
 
 conn = sqlite3.connect(DB_PATH)
+# 写入数据库时，timestamp 列会成为 SQLite 的 TEXT 类型，但 pandas 会自动存储为 ISO 格式字符串，这是 Grafana 能识别的
 df_long.to_sql('ammo_prices', conn, if_exists='replace', index=False)
 conn.close()
 
