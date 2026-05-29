@@ -15,8 +15,8 @@ jobs:
       - name: Connect to Tailscale via OAuth
         uses: tailscale/github-action@v3
         with:
-          oauth-client-Id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oaut-secret: ${{ secrets.TS_OAUTH_CLIENT_SECRET }}
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_CLIENT_SECRET }}
           tags: tag:github-runner
 
       # Verify Tailscale connection status
