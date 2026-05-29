@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import pandas as pd
+import psycopg2
 from sqlalchemy import create_engine
 import os
 
@@ -24,8 +25,18 @@ df_long = df_wide.melt(id_vars=['timestamp'], var_name='ammo_name', value_name='
 df_long = df_long.dropna(subset=['price'])
 df_long['timestamp'] = pd.to_datetime(df_long['timestamp'], format='%Y-%m-%d %H:%M')
 
-# 确保使用 postgresql+psycopg2 协议，并显式指定 host 和 port
-engine = create_engine(f'postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}')
+# 使用 psycopg2 直接连接，绕过 SQLAlchemy URL 解析
+conn = psycopg2.connect(
+    host=DB_HOST,
+    port=DB_PORT,
+    dbname=DB_NAME,
+    user=DB_USER,
+    password=DB_PASSWORD
+)
+
+# 使用 SQLAlchemy 的 engine 但用已有的连接
+engine = create_engine('postgresql+psycopg2://', creator=lambda: conn)
 
 df_long.to_sql('ammo_prices', engine, if_exists='replace', index=False)
+conn.close()
 print(f"Database updated with {len(df_long)} records")
