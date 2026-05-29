@@ -10,30 +10,36 @@ jobs:
       contents: write
 
     steps:
+      # Connect to Tailscale network to access TrueNAS PostgreSQL
       - name: Connect to Tailscale
         uses: tailscale/github-action@v3
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
 
+      # Verify the Tailscale connection
       - name: Verify Tailscale connection
         run: tailscale status
 
+      # Clone the repository
       - name: Clone repository using git
         run: |
           git clone https://github.com/${{ github.repository }}.git repo
           cd repo
           git checkout ${{ github.ref_name }}
 
+      # Setup Python environment
       - name: Setup Python
         run: |
           sudo apt update
           sudo apt install -y python3 python3-pip
           python3 --version
 
+      # Install dependencies for scraping
       - name: Install scraping dependencies
         working-directory: repo
         run: pip3 install requests beautifulsoup4 pandas
 
+      # Run the scraping script with retry
       - name: Run scraper with retry
         working-directory: repo
         timeout-minutes: 10
@@ -44,10 +50,12 @@ jobs:
             sleep 10
           done
 
+      # Install PostgreSQL dependencies
       - name: Install PostgreSQL dependencies
         working-directory: repo
         run: pip3 install psycopg2-binary sqlalchemy
 
+      # Debug: print environment variables and test TCP connection
       - name: Debug environment and network
         working-directory: repo
         env:
@@ -69,6 +77,7 @@ jobs:
           echo "=== Testing TCP connection to PostgreSQL ==="
           nc -zv $PGHOST $PGPORT || echo "Connection failed"
 
+      # Write scraped data to PostgreSQL
       - name: Write data to PostgreSQL
         working-directory: repo
         env:
@@ -79,6 +88,7 @@ jobs:
           PGPASSWORD: ${{ secrets.PGPASSWORD }}
         run: python3 csv_to_db.py
 
+      # Commit and push changes (only the CSV file, not the database)
       - name: Commit and push changes
         working-directory: repo
         run: |
