@@ -8,15 +8,17 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write   # Not strictly needed for authkey mode, but harmless
 
     steps:
-      # Connect to Tailscale network to access TrueNAS PostgreSQL
+      # Connect to Tailscale using a reusable auth key (90-day expiry)
       - name: Connect to Tailscale
         uses: tailscale/github-action@v3
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          tags: tag:github-runner
 
-      # Verify the Tailscale connection
+      # Verify Tailscale connection status
       - name: Verify Tailscale connection
         run: tailscale status
 
@@ -88,7 +90,7 @@ jobs:
           PGPASSWORD: ${{ secrets.PGPASSWORD }}
         run: python3 csv_to_db.py
 
-      # Commit and push changes (only the CSV file, not the database)
+      # Commit and push the updated CSV file (database file is not committed)
       - name: Commit and push changes
         working-directory: repo
         run: |
