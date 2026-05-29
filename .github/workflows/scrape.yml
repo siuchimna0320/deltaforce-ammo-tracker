@@ -63,8 +63,9 @@ jobs:
           echo "PGDATABASE='$PGDATABASE'"
           echo "PGUSER='$PGUSER'"
           echo "PGPASSWORD length = ${#PGPASSWORD}"
-          echo "=== Installing netcat ==="
-          sudo apt install -y netcat
+          echo "=== Installing netcat-openbsd ==="
+          sudo apt update
+          sudo apt install -y netcat-openbsd
           echo "=== Testing TCP connection to PostgreSQL ==="
           nc -zv $PGHOST $PGPORT || echo "Connection failed"
 
