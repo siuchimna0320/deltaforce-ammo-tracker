@@ -10,6 +10,12 @@ jobs:
       contents: write
 
     steps:
+      # Connect to Tailscale network to access TrueNAS PostgreSQL
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+
       - name: Clone repository using git
         run: |
           git clone https://github.com/${{ github.repository }}.git repo
