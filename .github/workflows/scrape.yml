@@ -10,13 +10,13 @@ jobs:
       contents: write
 
     steps:
-      # 1. 连接到 Tailscale 网络
+      # 1. 连接 Tailscale
       - name: Connect to Tailscale
         uses: tailscale/github-action@v3
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
 
-      # 2. 验证 Tailscale 状态
+      # 2. 验证 Tailscale 连接
       - name: Verify Tailscale connection
         run: tailscale status
 
@@ -55,36 +55,38 @@ jobs:
         working-directory: repo
         run: pip3 install psycopg2-binary sqlalchemy
 
-      # 8. 调试：打印环境变量（使用硬编码或 Secrets）
-      - name: Debug environment variables
+      # 8. 调试：打印环境变量、测试网络连接
+      - name: Debug environment and network
         working-directory: repo
         env:
-          # 临时硬编码，测试通过后删除并改用 Secrets
-          PGHOST: "100.64.0.1"          # 替换为你的 TrueNAS Tailscale IP
-          PGPORT: "5432"
-          PGDATABASE: "ammo_db"
-          PGUSER: "siuchiman"
-          PGPASSWORD: "你的数据库密码"   # 替换为真实密码
+          PGHOST: ${{ secrets.PGHOST }}
+          PGPORT: ${{ secrets.PGPORT }}
+          PGDATABASE: ${{ secrets.PGDATABASE }}
+          PGUSER: ${{ secrets.PGUSER }}
+          PGPASSWORD: ${{ secrets.PGPASSWORD }}
         run: |
-          echo "PGHOST=$PGHOST"
-          echo "PGPORT=$PGPORT"
-          echo "PGDATABASE=$PGDATABASE"
-          echo "PGUSER=$PGUSER"
-          echo "PGPASSWORD length=${#PGPASSWORD}"
-          # 测试 TCP 连接
+          echo "=== Environment variables ==="
+          echo "PGHOST='$PGHOST'"
+          echo "PGPORT='$PGPORT'"
+          echo "PGDATABASE='$PGDATABASE'"
+          echo "PGUSER='$PGUSER'"
+          echo "PGPASSWORD length = ${#PGPASSWORD}"
+          echo "=== Installing netcat ==="
           sudo apt install -y netcat
+          echo "=== Testing TCP connection to PostgreSQL ==="
           nc -zv $PGHOST $PGPORT || echo "Connection failed"
+          echo "=== Testing DNS resolution ==="
+          getent hosts $PGHOST || echo "Host not resolved"
 
       # 9. 写入数据到 PostgreSQL
       - name: Write data to PostgreSQL
         working-directory: repo
         env:
-          # 使用硬编码（测试用），或改用 ${{ secrets.XXX }}
-          PGHOST: "100.64.0.1"
-          PGPORT: "5432"
-          PGDATABASE: "ammo_db"
-          PGUSER: "siuchiman"
-          PGPASSWORD: "你的数据库密码"
+          PGHOST: ${{ secrets.PGHOST }}
+          PGPORT: ${{ secrets.PGPORT }}
+          PGDATABASE: ${{ secrets.PGDATABASE }}
+          PGUSER: ${{ secrets.PGUSER }}
+          PGPASSWORD: ${{ secrets.PGPASSWORD }}
         run: python3 csv_to_db.py
 
       # 10. 提交 CSV 更新到仓库
