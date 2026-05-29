@@ -10,33 +10,48 @@ jobs:
       contents: write
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Clone repository using git
+        run: |
+          git clone https://github.com/${{ github.repository }}.git repo
+          cd repo
+          git checkout ${{ github.ref_name }}
 
       - name: Setup Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.11'
+        run: |
+          sudo apt update
+          sudo apt install -y python3 python3-pip
+          python3 --version
 
-      - name: Install dependencies
-        run: pip install requests beautifulsoup4 pandas
+      - name: Install scraping dependencies
+        working-directory: repo
+        run: pip3 install requests beautifulsoup4 pandas
 
       - name: Run scraper with retry
+        working-directory: repo
         timeout-minutes: 10
         run: |
           for i in 1 2 3; do
-            python scraper.py && break
+            python3 scraper.py && break
             echo "Attempt $i failed, retrying in 10 seconds..."
             sleep 10
           done
 
-      # 新增：生成 SQLite 数据库
-      - name: Convert CSV to SQLite
-        run: python csv_to_db.py
+      - name: Install PostgreSQL dependencies
+        working-directory: repo
+        run: pip3 install psycopg2-binary sqlalchemy
+
+      - name: Write data to PostgreSQL
+        working-directory: repo
+        env:
+          PGHOST: ${{ secrets.PGHOST }}
+          PGPORT: ${{ secrets.PGPORT }}
+          PGDATABASE: ${{ secrets.PGDATABASE }}
+          PGUSER: ${{ secrets.PGUSER }}
+          PGPASSWORD: ${{ secrets.PGPASSWORD }}
+        run: python3 csv_to_db.py
 
       - name: Commit and push changes
+        working-directory: repo
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "GitHub Action"
@@ -44,6 +59,6 @@ jobs:
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "Update ammo prices and database - $(date -u +'%Y-%m-%d %H:%M UTC')"
-            git push
+            git commit -m "Update ammo prices - $(date -u +'%Y-%m-%d %H:%M UTC')"
+            git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref_name }}
           fi
