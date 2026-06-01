@@ -72,5 +72,6 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m "Update ammo prices - $(date -u +'%Y-%m-%d %H:%M UTC')"
-            git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref_name }}
+            # 【唯一修正行】：將原本的密鑰改為使用 GitHub 內建、隨環境自動生成的限制型 token
+            git push https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref_name }}
           fi
