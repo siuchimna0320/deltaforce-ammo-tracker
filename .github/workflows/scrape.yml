@@ -9,13 +9,13 @@ concurrency:
 
 jobs:
   scrape:
-    runs-on: ubuntu-latest    # 保持雲端執行，完全配合你的 TrueNAS cron 觸發
+    runs-on: ubuntu-latest
     permissions:
       contents: write
       actions: read           
 
     steps:
-      # 1. Clone the repository
+      # 1. Clone the repository (加上清理邏輯，防止 Re-run 衝突)
       - name: Clone repository using git
         run: |
           rm -rf repo
@@ -23,11 +23,11 @@ jobs:
           cd repo
           git checkout ${{ github.ref_name }}
 
-      # 🔐【關鍵補上】：讓 GitHub 雲端虛擬機帶上鑰匙，加入你的 Tailscale 內網
+      # 🔐【這就是你初版擁有的關鍵步驟】：使用你現有的 AUTHKEY 登入 Tailscale
       - name: Connect to Tailscale
         uses: tailscale/github-action@v2
         with:
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
 
       # 2. List all in-progress runs of this workflow
       - name: Run # List all in-progress runs of this workflow
@@ -66,7 +66,7 @@ jobs:
         working-directory: repo
         run: pip3 install psycopg2-binary sqlalchemy
 
-      # 7. Write scraped data to PostgreSQL
+      # 7. Write scraped data to PostgreSQL (這一步會順利透過 Tailscale IP 連線)
       - name: Write data to PostgreSQL
         working-directory: repo
         env:
