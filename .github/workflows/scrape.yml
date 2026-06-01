@@ -3,54 +3,56 @@ name: Delta Force Ammo Scraper
 on:
   workflow_dispatch:
 
-concurrency:
-  group: ammo-scraper
-  cancel-in-progress: false   # Do not cancel old runs; new runs will check and exit
+# Optional: use concurrency to prevent overlapping runs (alternative to the manual check)
+# concurrency:
+#   group: ammo-scraper
+#   cancel-in-progress: false
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      actions: read           # Required to query workflow run status
+      actions: read   # Required for gh run list
 
     steps:
-      # Check if another instance of this workflow is already running
-      - name: Check for existing running workflow
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # List all in-progress runs of this workflow
-          RUNNING_RUNS=$(gh run list --workflow scrape.yml --status in_progress --json databaseId --jq '.[].databaseId')
-          CURRENT_RUN_ID=$(gh run list --limit 1 --json databaseId --jq '.[0].databaseId')
-          for run in $RUNNING_RUNS; do
-            if [ "$run" != "$CURRENT_RUN_ID" ]; then
-              echo "Another workflow run ($run) is already in progress. Exiting this run."
-              exit 0
-            fi
-          done
-          echo "No other running workflows, proceeding."
-
-      # Clone the repository
+      # 1. Clone the repository first
       - name: Clone repository using git
         run: |
           git clone https://github.com/${{ github.repository }}.git repo
           cd repo
           git checkout ${{ github.ref_name }}
 
-      # Setup Python environment
+      # 2. Check if another instance of this workflow is already running
+      - name: Check for existing running workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: repo
+        run: |
+          RUNNING=$(gh run list --workflow scrape.yml --status in_progress --json databaseId --jq '.[].databaseId')
+          CURRENT=${{ github.run_id }}
+          for id in $RUNNING; do
+            if [ "$id" != "$CURRENT" ]; then
+              echo "Another run ($id) is in progress. Exiting this run."
+              exit 0
+            fi
+          done
+          echo "No other running workflows, proceeding."
+
+      # 3. Setup Python environment
       - name: Setup Python
+        working-directory: repo
         run: |
           sudo apt update
           sudo apt install -y python3 python3-pip
           python3 --version
 
-      # Install dependencies for scraping
+      # 4. Install dependencies for scraping
       - name: Install scraping dependencies
         working-directory: repo
         run: pip3 install requests beautifulsoup4 pandas
 
-      # Run the scraping script with retry
+      # 5. Run the scraping script with retry
       - name: Run scraper with retry
         working-directory: repo
         timeout-minutes: 10
@@ -61,12 +63,12 @@ jobs:
             sleep 10
           done
 
-      # Install PostgreSQL dependencies
+      # 6. Install PostgreSQL dependencies
       - name: Install PostgreSQL dependencies
         working-directory: repo
         run: pip3 install psycopg2-binary sqlalchemy
 
-      # Write scraped data to PostgreSQL
+      # 7. Write scraped data to PostgreSQL
       - name: Write data to PostgreSQL
         working-directory: repo
         env:
@@ -77,7 +79,7 @@ jobs:
           PGPASSWORD: ${{ secrets.PGPASSWORD }}
         run: python3 csv_to_db.py
 
-      # Commit and push updated CSV file (database file is not committed)
+      # 8. Commit and push the updated CSV file (the database file is not committed)
       - name: Commit and push changes
         working-directory: repo
         run: |
