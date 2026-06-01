@@ -12,6 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: read           # ⚠️【新加入】：使用 gh run list 必須要有 actions 的讀取權限
 
     steps:
       # Clone the repository
@@ -20,6 +21,15 @@ jobs:
           git clone https://github.com/${{ github.repository }}.git repo
           cd repo
           git checkout ${{ github.ref_name }}
+
+      # 🔍【修正位置】：這段檢查必須放在 Clone 之後，並且要在 repo 資料夾內執行
+      - name: Run # List all in-progress runs of this workflow
+        working-directory: repo
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # 列出正在執行的 runs（這行會需要 .git 資料夾來判斷是哪一個 repo）
+          gh run list --workflow="${{ github.workflow }}" --status=in_progress
 
       # Setup Python environment
       - name: Setup Python
@@ -72,6 +82,5 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m "Update ammo prices - $(date -u +'%Y-%m-%d %H:%M UTC')"
-            # 【唯一修正行】：將原本的密鑰改為使用 GitHub 內建、隨環境自動生成的限制型 token
             git push https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref_name }}
           fi
