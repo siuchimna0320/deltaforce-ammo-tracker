@@ -12,24 +12,24 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      actions: read           # ⚠️【新加入】：使用 gh run list 必須要有 actions 的讀取權限
+      actions: read           # 確保 gh run list 有權限讀取工作流狀態
 
     steps:
-      # Clone the repository
+      # Clone the repository (加上防殘留清理邏輯，徹底解決 Re-run 衝突)
       - name: Clone repository using git
         run: |
+          rm -rf repo
           git clone https://github.com/${{ github.repository }}.git repo
           cd repo
           git checkout ${{ github.ref_name }}
 
-      # 🔍【修正位置】：這段檢查必須放在 Clone 之後，並且要在 repo 資料夾內執行
+      # List all in-progress runs of this workflow
       - name: Run # List all in-progress runs of this workflow
         working-directory: repo
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # 列出正在執行的 runs（這行會需要 .git 資料夾來判斷是哪一個 repo）
-          gh run list --workflow="${{ github.workflow }}" --status=in_progress
+          gh run list --repo "${{ github.repository }}" --workflow="${{ github.workflow }}" --status=in_progress
 
       # Setup Python environment
       - name: Setup Python
