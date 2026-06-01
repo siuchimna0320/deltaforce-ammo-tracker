@@ -5,17 +5,17 @@ on:
 
 concurrency:
   group: ammo-scraper
-  cancel-in-progress: false   # New runs wait for previous to finish
+  cancel-in-progress: false
 
 jobs:
   scrape:
-    runs-on: self-hosted      # 👈 【修正這裡】改回你原本的自建 Runner，直接走本地內網！
+    runs-on: ubuntu-latest    # 保持雲端執行，完全配合你的 TrueNAS cron 觸發
     permissions:
       contents: write
       actions: read           
 
     steps:
-      # Clone the repository
+      # 1. Clone the repository
       - name: Clone repository using git
         run: |
           rm -rf repo
@@ -23,7 +23,13 @@ jobs:
           cd repo
           git checkout ${{ github.ref_name }}
 
-      # List all in-progress runs of this workflow
+      # 🔐【關鍵補上】：讓 GitHub 雲端虛擬機帶上鑰匙，加入你的 Tailscale 內網
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v2
+        with:
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+
+      # 2. List all in-progress runs of this workflow
       - name: Run # List all in-progress runs of this workflow
         working-directory: repo
         env:
@@ -31,7 +37,7 @@ jobs:
         run: |
           gh run list --repo "${{ github.repository }}" --workflow="${{ github.workflow }}" --status=in_progress
 
-      # Setup Python environment
+      # 3. Setup Python environment
       - name: Setup Python
         working-directory: repo
         run: |
@@ -39,12 +45,12 @@ jobs:
           sudo apt install -y python3 python3-pip
           python3 --version
 
-      # Install dependencies for scraping
+      # 4. Install dependencies for scraping
       - name: Install scraping dependencies
         working-directory: repo
         run: pip3 install requests beautifulsoup4 pandas
 
-      # Run the scraping script with retry
+      # 5. Run the scraping script with retry
       - name: Run scraper with retry
         working-directory: repo
         timeout-minutes: 10
@@ -55,12 +61,12 @@ jobs:
             sleep 10
           done
 
-      # Install PostgreSQL dependencies
+      # 6. Install PostgreSQL dependencies
       - name: Install PostgreSQL dependencies
         working-directory: repo
         run: pip3 install psycopg2-binary sqlalchemy
 
-      # Write scraped data to PostgreSQL
+      # 7. Write scraped data to PostgreSQL
       - name: Write data to PostgreSQL
         working-directory: repo
         env:
@@ -71,7 +77,7 @@ jobs:
           PGPASSWORD: ${{ secrets.PGPASSWORD }}
         run: python3 csv_to_db.py
 
-      # Commit and push the updated CSV file
+      # 8. Commit and push the updated CSV file
       - name: Commit and push changes
         working-directory: repo
         run: |
