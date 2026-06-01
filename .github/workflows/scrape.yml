@@ -9,13 +9,13 @@ concurrency:
 
 jobs:
   scrape:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted      # 👈 【修正這裡】改回你原本的自建 Runner，直接走本地內網！
     permissions:
       contents: write
-      actions: read           # 確保 gh run list 有權限讀取工作流狀態
+      actions: read           
 
     steps:
-      # Clone the repository (加上防殘留清理邏輯，徹底解決 Re-run 衝突)
+      # Clone the repository
       - name: Clone repository using git
         run: |
           rm -rf repo
@@ -71,7 +71,7 @@ jobs:
           PGPASSWORD: ${{ secrets.PGPASSWORD }}
         run: python3 csv_to_db.py
 
-      # Commit and push the updated CSV file (the database file is not committed)
+      # Commit and push the updated CSV file
       - name: Commit and push changes
         working-directory: repo
         run: |
