@@ -3,25 +3,33 @@ name: Delta Force Ammo Scraper
 on:
   workflow_dispatch:
 
+concurrency:
+  group: ammo-scraper
+  cancel-in-progress: false   # Do not cancel old runs; new runs will check and exit
+
 jobs:
   scrape:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      # OAuth method does not require id-token: write, can be omitted
+      actions: read           # Required to query workflow run status
 
     steps:
-      # Connect to Tailscale using OAuth client (automatically manages auth keys, permanent)
-      - name: Connect to Tailscale via OAuth
-        uses: tailscale/github-action@v3
-        with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_CLIENT_SECRET }}
-          tags: tag:github-runner
-
-      # Verify Tailscale connection status
-      - name: Verify Tailscale connection
-        run: tailscale status
+      # Check if another instance of this workflow is already running
+      - name: Check for existing running workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # List all in-progress runs of this workflow
+          RUNNING_RUNS=$(gh run list --workflow scrape.yml --status in_progress --json databaseId --jq '.[].databaseId')
+          CURRENT_RUN_ID=$(gh run list --limit 1 --json databaseId --jq '.[0].databaseId')
+          for run in $RUNNING_RUNS; do
+            if [ "$run" != "$CURRENT_RUN_ID" ]; then
+              echo "Another workflow run ($run) is already in progress. Exiting this run."
+              exit 0
+            fi
+          done
+          echo "No other running workflows, proceeding."
 
       # Clone the repository
       - name: Clone repository using git
@@ -37,7 +45,7 @@ jobs:
           sudo apt install -y python3 python3-pip
           python3 --version
 
-      # Install scraping dependencies
+      # Install dependencies for scraping
       - name: Install scraping dependencies
         working-directory: repo
         run: pip3 install requests beautifulsoup4 pandas
@@ -57,28 +65,6 @@ jobs:
       - name: Install PostgreSQL dependencies
         working-directory: repo
         run: pip3 install psycopg2-binary sqlalchemy
-
-      # Debug: print environment variables and test TCP connection
-      - name: Debug environment and network
-        working-directory: repo
-        env:
-          PGHOST: ${{ secrets.PGHOST }}
-          PGPORT: ${{ secrets.PGPORT }}
-          PGDATABASE: ${{ secrets.PGDATABASE }}
-          PGUSER: ${{ secrets.PGUSER }}
-          PGPASSWORD: ${{ secrets.PGPASSWORD }}
-        run: |
-          echo "=== Environment variables ==="
-          echo "PGHOST='$PGHOST'"
-          echo "PGPORT='$PGPORT'"
-          echo "PGDATABASE='$PGDATABASE'"
-          echo "PGUSER='$PGUSER'"
-          echo "PGPASSWORD length = ${#PGPASSWORD}"
-          echo "=== Installing netcat-openbsd ==="
-          sudo apt update
-          sudo apt install -y netcat-openbsd
-          echo "=== Testing TCP connection to PostgreSQL ==="
-          nc -zv $PGHOST $PGPORT || echo "Connection failed"
 
       # Write scraped data to PostgreSQL
       - name: Write data to PostgreSQL
