@@ -15,29 +15,28 @@ jobs:
       actions: read            
 
     steps:
-      # 1. 使用標準 Checkout Action 下載儲存庫
+      # 1. 下載儲存庫
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 🔐 2. 連線 Tailscale（使用 Tagged Auth Key 認證，最穩定且不佔用節點）
+      # 🔐 2. 連線 Tailscale
       - name: Connect to Tailscale
         uses: tailscale/github-action@v2
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
 
-      # 3. 列出目前執行中的 Workflow（可選）
+      # 3. 列出目前執行中的 Workflow
       - name: Check in-progress runs
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh run list --repo "${{ github.repository }}" --workflow="${{ github.workflow }}" --status=in_progress
 
-      # 4. 設定 Python 環境（使用官方 Action，支援 pip 快取）
+      # 4. 設定 Python 環境（已移除快取設定）
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
 
       # 5. 安裝所需的 Python 套件
       - name: Install dependencies
@@ -45,7 +44,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests beautifulsoup4 pandas psycopg2-binary sqlalchemy
 
-      # 6. 執行爬蟲腳本（內建失敗重試機制）
+      # 6. 執行爬蟲腳本（內建重試）
       - name: Run scraper with retry
         timeout-minutes: 10
         run: |
@@ -55,7 +54,7 @@ jobs:
             sleep 10
           done
 
-      # 7. 透過 Tailscale 內網將數據寫入 PostgreSQL
+      # 7. 寫入 PostgreSQL
       - name: Write data to PostgreSQL
         env:
           PGHOST: ${{ secrets.PGHOST }}
@@ -65,7 +64,7 @@ jobs:
           PGPASSWORD: ${{ secrets.PGPASSWORD }}
         run: python csv_to_db.py
 
-      # 8. 檢查 CSV 是否有變更並自動 Commit & Push 回 Repo
+      # 8. 自動 Commit & Push
       - name: Commit and push changes
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
