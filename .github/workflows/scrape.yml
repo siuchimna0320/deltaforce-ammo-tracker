@@ -12,10 +12,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      actions: read           
+      actions: read            
 
     steps:
-      # 1. Clone the repository (加上清理邏輯，防止 Re-run 衝突)
+      # 1. Clone the repository
       - name: Clone repository using git
         run: |
           rm -rf repo
@@ -23,11 +23,13 @@ jobs:
           cd repo
           git checkout ${{ github.ref_name }}
 
-      # 🔐【這就是你初版擁有的關鍵步驟】：使用你現有的 AUTHKEY 登入 Tailscale
+      # 🔐 使用 Tailscale OAuth Client 認證（已消除 Deprecation Warning）
       - name: Connect to Tailscale
         uses: tailscale/github-action@v2
         with:
-          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:github-runner
 
       # 2. List all in-progress runs of this workflow
       - name: Run # List all in-progress runs of this workflow
@@ -66,7 +68,7 @@ jobs:
         working-directory: repo
         run: pip3 install psycopg2-binary sqlalchemy
 
-      # 7. Write scraped data to PostgreSQL (這一步會順利透過 Tailscale IP 連線)
+      # 7. Write scraped data to PostgreSQL
       - name: Write data to PostgreSQL
         working-directory: repo
         env:
