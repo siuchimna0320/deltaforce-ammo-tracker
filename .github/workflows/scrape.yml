@@ -15,15 +15,11 @@ jobs:
       actions: read            
 
     steps:
-      # 1. Clone the repository
-      - name: Clone repository using git
-        run: |
-          rm -rf repo
-          git clone https://github.com/${{ github.repository }}.git repo
-          cd repo
-          git checkout ${{ github.ref_name }}
+      # 1. 使用標準 Checkout Action 下載儲存庫（比手動 git clone 穩定且不易出錯）
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      # 🔐 使用 Tailscale OAuth Client 認證（已消除 Deprecation Warning）
+      # 🔐 2. 連線 Tailscale（使用 OAuth Client 認證）
       - name: Connect to Tailscale
         uses: tailscale/github-action@v2
         with:
@@ -31,64 +27,55 @@ jobs:
           oauth-secret: ${{ secrets.TS_OAUTH_CLIENT_SECRET }}
           tags: tag:github-runner
 
-      # 2. List all in-progress runs of this workflow
-      - name: Run # List all in-progress runs of this workflow
-        working-directory: repo
+      # 3. 列出目前執行中的 Workflow（可選）
+      - name: Check in-progress runs
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh run list --repo "${{ github.repository }}" --workflow="${{ github.workflow }}" --status=in_progress
 
-      # 3. Setup Python environment
-      - name: Setup Python
-        working-directory: repo
+      # 4. 設定 Python 環境（使用官方 Action，支援 pip 快取且乾淨）
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      # 5. 安裝所需的 Python 套件
+      - name: Install dependencies
         run: |
-          sudo apt update
-          sudo apt install -y python3 python3-pip
-          python3 --version
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4 pandas psycopg2-binary sqlalchemy
 
-      # 4. Install dependencies for scraping
-      - name: Install scraping dependencies
-        working-directory: repo
-        run: pip3 install requests beautifulsoup4 pandas
-
-      # 5. Run the scraping script with retry
+      # 6. 執行爬蟲腳本（內建失敗重試機制）
       - name: Run scraper with retry
-        working-directory: repo
         timeout-minutes: 10
         run: |
           for i in 1 2 3; do
-            python3 scraper.py && break
+            python scraper.py && break
             echo "Attempt $i failed, retrying in 10 seconds..."
             sleep 10
           done
 
-      # 6. Install PostgreSQL dependencies
-      - name: Install PostgreSQL dependencies
-        working-directory: repo
-        run: pip3 install psycopg2-binary sqlalchemy
-
-      # 7. Write scraped data to PostgreSQL
+      # 7. 透過 Tailscale 內網將數據寫入 PostgreSQL
       - name: Write data to PostgreSQL
-        working-directory: repo
         env:
           PGHOST: ${{ secrets.PGHOST }}
           PGPORT: ${{ secrets.PGPORT }}
           PGDATABASE: ${{ secrets.PGDATABASE }}
           PGUSER: ${{ secrets.PGUSER }}
           PGPASSWORD: ${{ secrets.PGPASSWORD }}
-        run: python3 csv_to_db.py
+        run: python csv_to_db.py
 
-      # 8. Commit and push the updated CSV file
+      # 8. 檢查 CSV 是否有變更並自動 Commit & Push 回 Repo
       - name: Commit and push changes
-        working-directory: repo
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "GitHub Action"
-          git add -A
+          git config --local user.name "github-actions[bot]"
+          git add ammo_prices_wide.csv
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
             git commit -m "Update ammo prices - $(date -u +'%Y-%m-%d %H:%M UTC')"
-            git push https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref_name }}
+            git push
           fi
