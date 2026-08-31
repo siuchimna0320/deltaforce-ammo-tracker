@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
+import os
 import pandas as pd
 import psycopg2
 from sqlalchemy import create_engine
-import os
 
 CSV_PATH = "ammo_prices_wide.csv"
 
@@ -15,22 +15,34 @@ DB_PASSWORD = os.environ.get("PGPASSWORD")
 
 # Check all required variables exist
 if not all([DB_HOST, DB_NAME, DB_USER, DB_PASSWORD]):
-    print("Missing database environment variables")
-    exit(1)
+  print("Missing database environment variables")
+  exit(1)
 
 if not os.path.exists(CSV_PATH):
-    print("CSV not found, exit.")
-    exit(1)
+  print("CSV not found, exit.")
+  exit(1)
 
 # Read wide CSV
 df_wide = pd.read_csv(CSV_PATH)
 
+# ✨ 核心修改：遇到空值（Empty/NaN）自動向前複製（Forward Fill）上一筆有效數值
+# 排除第一欄 timestamp，只對子彈價格欄位進行 ffill
+price_cols = [c for c in df_wide.columns if c != "timestamp"]
+df_wide[price_cols] = df_wide[price_cols].ffill()
+
+# ✨ 將補齊後的完整資料存回 CSV，確保 GitHub Repo 上的 CSV 也沒有空值
+df_wide.to_csv(CSV_PATH, index=False)
+
 # Melt to long format
-df_long = df_wide.melt(id_vars=['timestamp'], var_name='ammo_name', value_name='price')
-df_long = df_long.dropna(subset=['price'])
+df_long = df_wide.melt(
+    id_vars=["timestamp"], var_name="ammo_name", value_name="price"
+)
+df_long = df_long.dropna(subset=["price"])
 
 # Convert timestamp string to datetime object
-df_long['timestamp'] = pd.to_datetime(df_long['timestamp'], format='%Y-%m-%d %H:%M')
+df_long["timestamp"] = pd.to_datetime(
+    df_long["timestamp"], format="%Y-%m-%d %H:%M"
+)
 
 # Establish a direct psycopg2 connection (forces TCP, bypasses SQLAlchemy URL parsing)
 conn = psycopg2.connect(
@@ -38,14 +50,14 @@ conn = psycopg2.connect(
     port=DB_PORT,
     dbname=DB_NAME,
     user=DB_USER,
-    password=DB_PASSWORD
+    password=DB_PASSWORD,
 )
 
 # Create SQLAlchemy engine using the existing connection
-engine = create_engine('postgresql+psycopg2://', creator=lambda: conn)
+engine = create_engine("postgresql+psycopg2://", creator=lambda: conn)
 
 # Write to PostgreSQL (replace table if exists)
-df_long.to_sql('ammo_prices', engine, if_exists='replace', index=False)
+df_long.to_sql("ammo_prices", engine, if_exists="replace", index=False)
 conn.close()
 
 print(f"Database updated with {len(df_long)} records")
